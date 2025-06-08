@@ -110,12 +110,12 @@ class App(tk.Tk):
         self.title("Recorridos BFS y DFS")
         self.graph = construir_grafo()
         self.G_nx = to_networkx(self.graph)
-        self.pos = self._compute_layout()
         self.start_node: str | None = None
         self.end_node: str | None = None
         self.anim = None
         self.bfs_window = None
         self.dfs_window = None
+        self.pos = self._compute_layout()
         self.create_widgets()
 
     def _compute_layout(self):
@@ -226,11 +226,9 @@ class App(tk.Tk):
         if labels is None:
             labels = {n: n for n in nodelist}
         
-        # Dimensiones para los nodos ajustadas según la longitud del texto
-        # Se parte de un tamaño base y se añade un factor proporcional al número
-        # de caracteres para evitar que las etiquetas largas se solapen.
-        base_w, base_h = 0.08, 0.05
-        scale_w, scale_h = 0.015, 0.01
+        # Aumentar significativamente el tamaño base y la escala
+        base_w, base_h = 0.3, 0.2  # Valores mucho más grandes
+        scale_w, scale_h = 0.03, 0.02  # Escala mayor para etiquetas largas
         
         for node in nodelist:
             if node not in pos:
@@ -262,9 +260,9 @@ class App(tk.Tk):
     def draw_base(self):
         self.ax1.clear()
         
-        # Actualizar el layout si cambiaron los nodos de inicio/fin
-        if self.start_node or self.end_node:
-            self.pos = self._compute_layout()
+        # Eliminar esta parte que recalcula el layout
+        # if self.start_node or self.end_node:
+        #     self.pos = self._compute_layout()
         
         # Dibujar aristas primero
         nx.draw_networkx_edges(
@@ -347,12 +345,13 @@ class App(tk.Tk):
         ax.clear()
         if not tree:
             ax.set_title(f"Arbol {title}")
+            ax.axis('off')
             self.canvas.draw()
             return
-        
+
         G = nx.DiGraph()
-        
-        # Identificar el nodo raíz (nodo sin padre)
+
+        # Identificar el nodo raíz
         root_node = None
         for child, parent in tree.items():
             if parent:
@@ -360,40 +359,24 @@ class App(tk.Tk):
             elif not parent and child.id == self.start_node:
                 root_node = child.id
                 G.add_node(child.id)
-        
-        if not root_node and G.nodes():
-            # Si no se identificó el nodo raíz, usar el nodo inicial
-            root_node = self.start_node if self.start_node in G.nodes() else list(G.nodes())[0]
-        
+
+        if not G.nodes():
+            ax.set_title(f"Arbol {title}")
+            ax.axis('off')
+            self.canvas.draw()
+            return
+
         try:
             from networkx.drawing.nx_agraph import graphviz_layout
-            # Usar 'dot' con el nodo raíz especificado para asegurarnos que quede arriba
-            pos = graphviz_layout(G, prog="dot", root=root_node)
+            pos = graphviz_layout(G, prog="dot", args="-Grankdir=TB -Gnodesep=0.8 -Granksep=1.5")
         except Exception:
-            try:
-                pos = nx.planar_layout(G, scale=6)
-            except nx.NetworkXException:
-                pos = nx.spring_layout(G, seed=1, k=6 / np.sqrt(max(1, G.number_of_nodes())), iterations=1500)
-        
-        # Si tenemos un nodo raíz, posicionarlo manualmente en la parte superior central
-        if root_node and root_node in pos:
-            # Calcular el centro horizontal
-            xs = [p[0] for p in pos.values()]
-            x_center = (max(xs) + min(xs)) / 2 if xs else 0
-            
-            # Calcular la coordenada y más alta (superior)
-            ys = [p[1] for p in pos.values()]
-            y_top = max(ys) + 0.2 if ys else 1
-            
-            # Colocar el nodo raíz en la parte superior central
-            pos[root_node] = (x_center, y_top)
-            
-            # Reajustar el layout manteniendo fijo el nodo raíz
-            pos = nx.spring_layout(
-                G, pos=pos, fixed=[root_node], seed=1, 
-                k=6 / np.sqrt(max(1, G.number_of_nodes())), iterations=1000
-            )
-        
+            pos = nx.spring_layout(G, seed=42, k=2.0, iterations=1500)
+
+        # Aplicar factor de escala
+        scaling_factor = 1.8
+        for node in pos:
+            pos[node] = (pos[node][0] * scaling_factor, pos[node][1] * scaling_factor)
+
         # Dibujar aristas
         nx.draw_networkx_edges(
             G,
@@ -401,30 +384,31 @@ class App(tk.Tk):
             ax=ax,
             edge_color=color,
             arrowsize=10,
-            connectionstyle="arc3,rad=0.2",
+            width=1.5,
+            connectionstyle="arc3,rad=0.1",
         )
-        
-        # Dibujar nodos con tamaño ajustado al texto
-        self._draw_text_nodes(
-            ax, 
-            pos, 
+
+        # Dibujar nodos con estilo circular
+        self._draw_nodes_circular(
+            ax,
+            pos,
             list(G.nodes()),
-            node_color="lightgray"
+            node_color="white"
         )
-        
+
         # Resaltar el nodo raíz
         if root_node and root_node in pos:
-            self._draw_text_nodes(
-                ax, 
-                pos, 
+            self._draw_nodes_circular(
+                ax,
+                pos,
                 [root_node],
                 node_color=color,
                 text_color="white",
                 zorder=20
             )
-        
+
         ax.set_title(f"Arbol {title}")
-        ax.margins(0.25)
+        ax.axis('off')
         self.canvas.draw()
 
     def animate_paths(self, path_bfs, path_dfs):
@@ -433,13 +417,10 @@ class App(tk.Tk):
 
         def update(i):
             self.draw_base()
-            
-            # Dibujar camino BFS
-            if path_bfs:
-                edges_bfs = list(zip(path_bfs, path_bfs[1 : i + 1]))
-                nodes_bfs = path_bfs[: i + 1]
-                
-                # Dibujar aristas del camino
+
+            # Dibujar camino BFS hasta el paso i
+            if path_bfs and i < len(path_bfs) - 1:
+                edges_bfs = list(zip(path_bfs[:i+1], path_bfs[1:i+2]))
                 nx.draw_networkx_edges(
                     self.G_nx,
                     self.pos,
@@ -449,25 +430,20 @@ class App(tk.Tk):
                     width=2,
                     connectionstyle="arc3,rad=0.2",
                 )
-                
-                # Dibujar nodos del camino
-                self._draw_text_nodes(
+
+                # Nodos del camino BFS
+                self._draw_nodes_circular(
                     self.ax1,
                     self.pos,
-                    nodes_bfs,
-                    node_color="green",
-                    text_color="white",
-                    border_color="darkgreen",
-                    linewidth=1.5,
+                    path_bfs[:i+2],
+                    node_color="lightgreen",
+                    border_color="green",
                     zorder=20
                 )
-                
-            # Dibujar camino DFS
-            if path_dfs:
-                edges_dfs = list(zip(path_dfs, path_dfs[1 : i + 1]))
-                nodes_dfs = path_dfs[: i + 1]
-                
-                # Dibujar aristas del camino
+
+            # Dibujar camino DFS hasta el paso i
+            if path_dfs and i < len(path_dfs) - 1:
+                edges_dfs = list(zip(path_dfs[:i+1], path_dfs[1:i+2]))
                 nx.draw_networkx_edges(
                     self.G_nx,
                     self.pos,
@@ -475,23 +451,19 @@ class App(tk.Tk):
                     edgelist=edges_dfs,
                     edge_color="red",
                     width=2,
-                    style="dashed",
                     connectionstyle="arc3,rad=0.2",
                 )
-                
-                # Dibujar nodos del camino
-                self._draw_text_nodes(
+
+                # Nodos del camino DFS
+                self._draw_nodes_circular(
                     self.ax1,
                     self.pos,
-                    nodes_dfs,
-                    node_color="red",
-                    text_color="white",
+                    path_dfs[:i+2],
+                    node_color="lightcoral",
                     border_color="darkred",
-                    linewidth=1.5,
                     zorder=20
                 )
-                
-            # Añadir indicador de paso actual
+
             self.ax1.annotate(
                 f"Paso {i+1}/{max_steps}",
                 xy=(0.02, 0.02),
