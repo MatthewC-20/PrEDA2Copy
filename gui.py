@@ -4,7 +4,6 @@ import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import networkx as nx
 
 from Graph import Graph
@@ -111,6 +110,7 @@ class App(tk.Tk):
         self.G_nx = to_networkx(self.graph)
         self.pos = nx.spring_layout(self.G_nx, seed=42)
         self.create_widgets()
+        self.selecting_end = False
 
     def create_widgets(self):
         nodos = sorted(self.graph.nodos.keys())
@@ -129,7 +129,44 @@ class App(tk.Tk):
         self.fig, (self.ax1, self.ax2) = plt.subplots(1,2, figsize=(10,5))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.get_tk_widget().grid(row=4, column=0, columnspan=2)
+        self.canvas.mpl_connect('button_press_event', self.on_click)
+        self.draw_base_graph()
 
+    def draw_base_graph(self):
+        self.ax1.clear()
+        nx.draw(self.G_nx, self.pos, ax=self.ax1, node_color='lightgray',
+                 edge_color='gray', with_labels=True, arrowsize=10)
+        if self.start_var.get():
+            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1,
+                                   nodelist=[self.start_var.get()],
+                                   node_color='yellow')
+        if self.end_var.get():
+            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1,
+                                   nodelist=[self.end_var.get()],
+                                   node_color='orange')
+        self.ax1.set_title('Selecciona nodos')
+        self.canvas.draw()
+
+    def on_click(self, event):
+        if event.inaxes != self.ax1 or event.xdata is None:
+            return
+        x, y = event.xdata, event.ydata
+        closest = None
+        min_dist = float('inf')
+        for node, (nx_, ny_) in self.pos.items():
+            d = (x - nx_)**2 + (y - ny_)**2
+            if d < min_dist:
+                min_dist = d
+                closest = node
+        if min_dist > 0.05:
+            return
+        if not self.selecting_end:
+            self.start_var.set(closest)
+            self.selecting_end = True
+        else:
+            self.end_var.set(closest)
+            self.selecting_end = False
+        self.draw_base_graph()
     def run(self):
         start = self.start_var.get()
         end = self.end_var.get()
@@ -150,21 +187,19 @@ class App(tk.Tk):
         else:
             self.text.insert(tk.END, "DFS: camino no encontrado\n")
 
-        self.draw_results(path_bfs, tree_bfs, path_dfs, tree_dfs)
+        self.draw_tree(tree_bfs, tree_dfs)
+        if path_bfs:
+            self.animate_path(path_bfs, 'green', '-')
+            delay = 500 * len(path_bfs) + 500
+        else:
+            delay = 0
+        if path_dfs:
+            self.after(delay, lambda: self.animate_path(path_dfs, 'red', 'dashed'))
 
-    def draw_results(self, path_bfs, tree_bfs, path_dfs, tree_dfs):
+    def draw_tree(self, tree_bfs, tree_dfs):
         self.ax1.clear()
         self.ax2.clear()
-        nx.draw(self.G_nx, self.pos, ax=self.ax1, node_color='lightgray', edge_color='gray', with_labels=True, arrowsize=10)
-        if path_bfs:
-            edges = list(zip(path_bfs, path_bfs[1:]))
-            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1, nodelist=path_bfs, node_color='green')
-            nx.draw_networkx_edges(self.G_nx, self.pos, ax=self.ax1, edgelist=edges, edge_color='green', width=2)
-        if path_dfs:
-            edges = list(zip(path_dfs, path_dfs[1:]))
-            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1, nodelist=path_dfs, node_color='red')
-            nx.draw_networkx_edges(self.G_nx, self.pos, ax=self.ax1, edgelist=edges, edge_color='red', width=2, style='dashed')
-        self.ax1.set_title('Recorrido')
+        self.draw_base_graph()
 
         tree_graph = nx.DiGraph()
         for child, parent in tree_bfs.items():
@@ -179,7 +214,32 @@ class App(tk.Tk):
         self.ax2.set_title('Arboles')
         self.canvas.draw()
 
+    def animate_path(self, path, color, style, idx=1):
+        self.ax1.clear()
+        nx.draw(self.G_nx, self.pos, ax=self.ax1, node_color='lightgray',
+                 edge_color='gray', with_labels=True, arrowsize=10)
+        if self.start_var.get():
+            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1,
+                                   nodelist=[self.start_var.get()],
+                                   node_color='yellow')
+        if self.end_var.get():
+            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1,
+                                   nodelist=[self.end_var.get()],
+                                   node_color='orange')
+        nodes = path[:idx]
+        edges = list(zip(path[:idx-1], path[1:idx]))
+        nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1,
+                               nodelist=nodes, node_color=color)
+        nx.draw_networkx_edges(self.G_nx, self.pos, ax=self.ax1,
+                               edgelist=edges, edge_color=color,
+                               width=2, style=style)
+        self.ax1.set_title('Recorrido')
+        self.canvas.draw()
+        if idx < len(path):
+            self.after(500, lambda: self.animate_path(path, color, style, idx+1))
+
 
 if __name__ == '__main__':
     app = App()
     app.mainloop()
+
