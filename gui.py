@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import matplotlib
-matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -503,5 +502,6 @@ class App(tk.Tk):
 
 
 if __name__ == '__main__':
+    matplotlib.use('TkAgg')
     app = App()
     app.mainloop()
