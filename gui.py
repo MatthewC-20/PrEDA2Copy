@@ -209,19 +209,22 @@ class App(tk.Tk):
             self.pos,
             ax=self.ax1,
             node_color="lightgray",
-            node_size=2000,
+            node_size=800,
         )
         nx.draw_networkx_labels(
             self.G_nx,
             self.pos,
             ax=self.ax1,
+            font_size=8,
         )
         nx.draw_networkx_edges(
             self.G_nx,
             self.pos,
             ax=self.ax1,
             edge_color="gray",
-            arrowsize=10,
+            arrows=True,
+            arrowstyle="-|>",
+            arrowsize=20,
             connectionstyle="arc3,rad=0.2",
         )
         if self.start_node:
@@ -231,7 +234,7 @@ class App(tk.Tk):
                 ax=self.ax1,
                 nodelist=[self.start_node],
                 node_color="blue",
-                node_size=2000,
+                node_size=800,
             )
         if self.end_node:
             nx.draw_networkx_nodes(
@@ -240,7 +243,7 @@ class App(tk.Tk):
                 ax=self.ax1,
                 nodelist=[self.end_node],
                 node_color="orange",
-                node_size=2000,
+                node_size=800,
             )
         self.ax1.set_title("Recorrido")
         self.canvas.draw()
@@ -303,15 +306,17 @@ class App(tk.Tk):
             pos,
             ax=ax,
             node_color="lightgray",
-            node_size=2000,
+            node_size=800,
         )
-        nx.draw_networkx_labels(G, pos, ax=ax)
+        nx.draw_networkx_labels(G, pos, ax=ax, font_size=8)
         nx.draw_networkx_edges(
             G,
             pos,
             ax=ax,
             edge_color=color,
-            arrowsize=10,
+            arrows=True,
+            arrowstyle="-|>",
+            arrowsize=20,
             connectionstyle="arc3,rad=0.2",
         )
         ax.set_title(f"Arbol {title}")
@@ -332,7 +337,7 @@ class App(tk.Tk):
                     ax=self.ax1,
                     nodelist=nodes_bfs,
                     node_color="green",
-                    node_size=2000,
+                    node_size=800,
                 )
                 nx.draw_networkx_edges(
                     self.G_nx,
@@ -341,6 +346,9 @@ class App(tk.Tk):
                     edgelist=edges_bfs,
                     edge_color="green",
                     width=2,
+                    arrows=True,
+                    arrowstyle="-|>",
+                    arrowsize=20,
                     connectionstyle="arc3,rad=0.2",
                 )
             if path_dfs:
@@ -352,7 +360,7 @@ class App(tk.Tk):
                     ax=self.ax1,
                     nodelist=nodes_dfs,
                     node_color="red",
-                    node_size=2000,
+                    node_size=800,
                 )
                 nx.draw_networkx_edges(
                     self.G_nx,
@@ -362,6 +370,9 @@ class App(tk.Tk):
                     edge_color="red",
                     width=2,
                     style="dashed",
+                    arrows=True,
+                    arrowstyle="-|>",
+                    arrowsize=20,
                     connectionstyle="arc3,rad=0.2",
                 )
 
