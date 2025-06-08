@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import networkx as nx
 import numpy as np
-import matplotlib.patches as patches
 
 from Graph import Graph
 
@@ -126,14 +125,13 @@ class App(tk.Tk):
             pos = graphviz_layout(self.G_nx, prog="dot")
         except Exception:
             try:
-                pos = nx.planar_layout(self.G_nx, scale=12)  # Aumentado para mayor separación
+                pos = nx.planar_layout(self.G_nx, scale=2)
             except nx.NetworkXException:
                 pos = nx.spring_layout(
-                    self.G_nx, seed=42, k=15 / np.sqrt(n), iterations=5000  # Aumentados k e iteraciones
+                    self.G_nx, seed=42, k=3 / np.sqrt(n), iterations=2000
                 )
-        # Aplicar spring_layout con parámetros más agresivos para separación
         pos = nx.spring_layout(
-            self.G_nx, pos=pos, seed=42, k=15 / np.sqrt(n), iterations=3000
+            self.G_nx, pos=pos, seed=42, k=3 / np.sqrt(n), iterations=500
         )
         return pos
 
@@ -204,47 +202,47 @@ class App(tk.Tk):
             self.end_label.config(text="-")
         self.draw_base()
 
-    def _draw_oval_nodes(self, ax, pos, nodelist, node_color, node_width=0.15, node_height=0.08, edgecolor="black", zorder=2):
-        # Nodos más pequeños para mejor separación
-        for i, node in enumerate(nodelist):
-            x, y = pos[node]
-            ellipse = patches.Ellipse(
-                (x, y), width=node_width, height=node_height,
-                facecolor=node_color if isinstance(node_color, str) else node_color[i % len(node_color)],
-                edgecolor=edgecolor, linewidth=1.2, zorder=zorder
-            )
-            ax.add_patch(ellipse)
-
-    def _draw_oval_labels(self, ax, pos, labels, font_size=8, font_color="black", zorder=3):
-        for node, (x, y) in pos.items():
-            ax.text(x, y, labels[node], fontsize=font_size, ha="center", va="center", color=font_color, zorder=zorder)
-
     def draw_base(self):
         self.ax1.clear()
-        # Dibujar aristas primero
+        nx.draw_networkx_nodes(
+            self.G_nx,
+            self.pos,
+            ax=self.ax1,
+            node_color="lightgray",
+            node_size=2000,
+        )
+        nx.draw_networkx_labels(
+            self.G_nx,
+            self.pos,
+            ax=self.ax1,
+        )
         nx.draw_networkx_edges(
             self.G_nx,
             self.pos,
             ax=self.ax1,
             edge_color="gray",
             arrowsize=10,
-            connectionstyle="arc3,rad=0.25",
-            width=1.5
+            connectionstyle="arc3,rad=0.2",
         )
-        # Dibujar nodos ovalados
-        self._draw_oval_nodes(self.ax1, self.pos, list(self.G_nx.nodes), node_color="lightgray")
-        # Etiquetas
-        self._draw_oval_labels(self.ax1, self.pos, {n: n for n in self.G_nx.nodes}, font_size=8)
-        # Nodos de inicio y fin resaltados
         if self.start_node:
-            self._draw_oval_nodes(self.ax1, self.pos, [self.start_node], node_color="blue", edgecolor="black", zorder=4)
-            self._draw_oval_labels(self.ax1, self.pos, {self.start_node: self.start_node}, font_size=8, font_color="white", zorder=5)
+            nx.draw_networkx_nodes(
+                self.G_nx,
+                self.pos,
+                ax=self.ax1,
+                nodelist=[self.start_node],
+                node_color="blue",
+                node_size=2000,
+            )
         if self.end_node:
-            self._draw_oval_nodes(self.ax1, self.pos, [self.end_node], node_color="orange", edgecolor="black", zorder=4)
-            self._draw_oval_labels(self.ax1, self.pos, {self.end_node: self.end_node}, font_size=8, font_color="white", zorder=5)
+            nx.draw_networkx_nodes(
+                self.G_nx,
+                self.pos,
+                ax=self.ax1,
+                nodelist=[self.end_node],
+                node_color="orange",
+                node_size=2000,
+            )
         self.ax1.set_title("Recorrido")
-        self.ax1.margins(0.2)
-        self.ax1.set_aspect('equal')
         self.canvas.draw()
 
     def run(self):
@@ -297,25 +295,26 @@ class App(tk.Tk):
             pos = graphviz_layout(G, prog="dot")
         except Exception:
             try:
-                pos = nx.planar_layout(G, scale=12)  # Aumentado para mayor separación
+                pos = nx.planar_layout(G)
             except nx.NetworkXException:
-                pos = nx.spring_layout(G, seed=1, k=15 / np.sqrt(max(1, G.number_of_nodes())), iterations=3000)
-        # Refinar con spring_layout para más separación
-        pos = nx.spring_layout(G, pos=pos, seed=1, k=15 / np.sqrt(max(1, G.number_of_nodes())), iterations=2000)
+                pos = nx.spring_layout(G, seed=1)
+        nx.draw_networkx_nodes(
+            G,
+            pos,
+            ax=ax,
+            node_color="lightgray",
+            node_size=2000,
+        )
+        nx.draw_networkx_labels(G, pos, ax=ax)
         nx.draw_networkx_edges(
             G,
             pos,
             ax=ax,
             edge_color=color,
             arrowsize=10,
-            connectionstyle="arc3,rad=0.25",
-            width=1.5
+            connectionstyle="arc3,rad=0.2",
         )
-        self._draw_oval_nodes(ax, pos, list(G.nodes), node_color="lightgray")
-        self._draw_oval_labels(ax, pos, {n: n for n in G.nodes}, font_size=8)
         ax.set_title(f"Arbol {title}")
-        ax.margins(0.3)  # Mayor margen para evitar recortes
-        ax.set_aspect('equal')
         self.canvas.draw()
 
     def animate_paths(self, path_bfs, path_dfs):
@@ -324,116 +323,51 @@ class App(tk.Tk):
 
         def update(i):
             self.draw_base()
-            # Dibujar el camino BFS hasta el paso actual
-            if path_bfs and i < len(path_bfs):
+            if path_bfs:
                 edges_bfs = list(zip(path_bfs, path_bfs[1 : i + 1]))
                 nodes_bfs = path_bfs[: i + 1]
-                
-                # Dibujar primero las aristas del camino
+                nx.draw_networkx_nodes(
+                    self.G_nx,
+                    self.pos,
+                    ax=self.ax1,
+                    nodelist=nodes_bfs,
+                    node_color="green",
+                    node_size=2000,
+                )
                 nx.draw_networkx_edges(
                     self.G_nx,
                     self.pos,
                     ax=self.ax1,
                     edgelist=edges_bfs,
                     edge_color="green",
-                    width=2.5,  # Más ancho para mayor visibilidad
+                    width=2,
                     connectionstyle="arc3,rad=0.2",
                 )
-                
-                # Resaltar los nodos del camino BFS
-                self._draw_oval_nodes(
-                    self.ax1, 
-                    self.pos, 
-                    nodes_bfs, 
-                    node_color="green", 
-                    edgecolor="darkgreen", 
-                    zorder=10
-                )
-                
-                # Agregar etiquetas con un contorno para mayor visibilidad
-                self._draw_oval_labels(
-                    self.ax1, 
-                    self.pos, 
-                    {n: n for n in nodes_bfs}, 
-                    font_size=8, 
-                    font_color="white", 
-                    zorder=11
-                )
-                
-                # Marcar el nodo actual en el recorrido
-                if i > 0:
-                    current_node = path_bfs[i]
-                    self._draw_oval_nodes(
-                        self.ax1, 
-                        self.pos, 
-                        [current_node], 
-                        node_color="lightgreen", 
-                        edgecolor="darkgreen", 
-                        zorder=12
-                    )
-            
-            # Dibujar el camino DFS hasta el paso actual
-            if path_dfs and i < len(path_dfs):
+            if path_dfs:
                 edges_dfs = list(zip(path_dfs, path_dfs[1 : i + 1]))
                 nodes_dfs = path_dfs[: i + 1]
-                
-                # Dibujar primero las aristas del camino
+                nx.draw_networkx_nodes(
+                    self.G_nx,
+                    self.pos,
+                    ax=self.ax1,
+                    nodelist=nodes_dfs,
+                    node_color="red",
+                    node_size=2000,
+                )
                 nx.draw_networkx_edges(
                     self.G_nx,
                     self.pos,
                     ax=self.ax1,
                     edgelist=edges_dfs,
                     edge_color="red",
-                    width=2.5,  # Más ancho para mayor visibilidad
+                    width=2,
                     style="dashed",
                     connectionstyle="arc3,rad=0.2",
-                )
-                
-                # Resaltar los nodos del camino DFS
-                self._draw_oval_nodes(
-                    self.ax1, 
-                    self.pos, 
-                    nodes_dfs, 
-                    node_color="red", 
-                    edgecolor="darkred", 
-                    zorder=12
-                )
-                
-                # Agregar etiquetas con un contorno para mayor visibilidad
-                self._draw_oval_labels(
-                    self.ax1, 
-                    self.pos, 
-                    {n: n for n in nodes_dfs}, 
-                    font_size=8, 
-                    font_color="white", 
-                    zorder=13
-                )
-                
-                # Marcar el nodo actual en el recorrido
-                if i > 0:
-                    current_node = path_dfs[i]
-                    self._draw_oval_nodes(
-                        self.ax1, 
-                        self.pos, 
-                        [current_node], 
-                        node_color="lightcoral", 
-                        edgecolor="darkred", 
-                        zorder=14
-                    )
-            
-            # Agregar una leyenda para los recorridos
-            if i > 0:
-                self.ax1.annotate(
-                    f"Paso {i+1} de {max_steps}",
-                    xy=(0.02, 0.02),
-                    xycoords="axes fraction",
-                    fontsize=10,
-                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8)
                 )
 
         if max_steps > 0:
             self.anim = animation.FuncAnimation(
-                self.fig, update, frames=max_steps, interval=1000, repeat=True  # Intervalo más largo y repetir
+                self.fig, update, frames=max_steps, interval=800, repeat=False
             )
         self.canvas.draw()
 
