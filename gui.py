@@ -183,22 +183,43 @@ class App(tk.Tk):
 
     def draw_base(self):
         self.ax1.clear()
-        nx.draw(
+        nx.draw_networkx_nodes(
             self.G_nx,
             self.pos,
             ax=self.ax1,
             node_color="lightgray",
+            node_size=2000,
+        )
+        nx.draw_networkx_labels(
+            self.G_nx,
+            self.pos,
+            ax=self.ax1,
+        )
+        nx.draw_networkx_edges(
+            self.G_nx,
+            self.pos,
+            ax=self.ax1,
             edge_color="gray",
-            with_labels=True,
             arrowsize=10,
+            connectionstyle="arc3,rad=0.2",
         )
         if self.start_node:
             nx.draw_networkx_nodes(
-                self.G_nx, self.pos, ax=self.ax1, nodelist=[self.start_node], node_color="blue"
+                self.G_nx,
+                self.pos,
+                ax=self.ax1,
+                nodelist=[self.start_node],
+                node_color="blue",
+                node_size=2000,
             )
         if self.end_node:
             nx.draw_networkx_nodes(
-                self.G_nx, self.pos, ax=self.ax1, nodelist=[self.end_node], node_color="orange"
+                self.G_nx,
+                self.pos,
+                ax=self.ax1,
+                nodelist=[self.end_node],
+                node_color="orange",
+                node_size=2000,
             )
         self.ax1.set_title("Recorrido")
         self.canvas.draw()
@@ -256,8 +277,22 @@ class App(tk.Tk):
                 pos = nx.planar_layout(G)
             except nx.NetworkXException:
                 pos = nx.spring_layout(G, seed=1)
-        nx.draw(G, pos, ax=ax, with_labels=True, arrowsize=10,
-                edge_color=color, node_color="lightgray")
+        nx.draw_networkx_nodes(
+            G,
+            pos,
+            ax=ax,
+            node_color="lightgray",
+            node_size=2000,
+        )
+        nx.draw_networkx_labels(G, pos, ax=ax)
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            ax=ax,
+            edge_color=color,
+            arrowsize=10,
+            connectionstyle="arc3,rad=0.2",
+        )
         ax.set_title(f"Arbol {title}")
         self.canvas.draw()
 
@@ -271,16 +306,32 @@ class App(tk.Tk):
                 edges_bfs = list(zip(path_bfs, path_bfs[1 : i + 1]))
                 nodes_bfs = path_bfs[: i + 1]
                 nx.draw_networkx_nodes(
-                    self.G_nx, self.pos, ax=self.ax1, nodelist=nodes_bfs, node_color="green"
+                    self.G_nx,
+                    self.pos,
+                    ax=self.ax1,
+                    nodelist=nodes_bfs,
+                    node_color="green",
+                    node_size=2000,
                 )
                 nx.draw_networkx_edges(
-                    self.G_nx, self.pos, ax=self.ax1, edgelist=edges_bfs, edge_color="green", width=2
+                    self.G_nx,
+                    self.pos,
+                    ax=self.ax1,
+                    edgelist=edges_bfs,
+                    edge_color="green",
+                    width=2,
+                    connectionstyle="arc3,rad=0.2",
                 )
             if path_dfs:
                 edges_dfs = list(zip(path_dfs, path_dfs[1 : i + 1]))
                 nodes_dfs = path_dfs[: i + 1]
                 nx.draw_networkx_nodes(
-                    self.G_nx, self.pos, ax=self.ax1, nodelist=nodes_dfs, node_color="red"
+                    self.G_nx,
+                    self.pos,
+                    ax=self.ax1,
+                    nodelist=nodes_dfs,
+                    node_color="red",
+                    node_size=2000,
                 )
                 nx.draw_networkx_edges(
                     self.G_nx,
@@ -290,6 +341,7 @@ class App(tk.Tk):
                     edge_color="red",
                     width=2,
                     style="dashed",
+                    connectionstyle="arc3,rad=0.2",
                 )
 
         if max_steps > 0:
