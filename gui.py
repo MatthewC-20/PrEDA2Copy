@@ -254,8 +254,57 @@ class App(tk.Tk):
             ax.add_patch(ellipse)
             
             # Añadir el texto centrado en el óvalo
-            ax.text(x, y, label, ha='center', va='center', fontsize=9,
-                   color=text_color, zorder=zorder+1)
+            ax.text(
+                x,
+                y,
+                label,
+                ha='center',
+                va='center',
+                fontsize=9,
+                color=text_color,
+                zorder=zorder+1,
+            )
+
+    def _draw_nodes_circular(
+        self, ax, pos, nodelist, labels=None, node_color="white",
+        border_color="black", text_color="black", linewidth=1, zorder=1
+    ):
+        """Dibuja nodos circulares cuyo tamaño se ajusta a la longitud de la etiqueta."""
+        if labels is None:
+            labels = {n: n for n in nodelist}
+
+        base_r = 0.15
+        scale_r = 0.015
+
+        for node in nodelist:
+            if node not in pos:
+                continue
+
+            x, y = pos[node]
+            label = str(labels[node])
+
+            radius = base_r + len(label) * scale_r
+
+            circle = patches.Circle(
+                (x, y),
+                radius=radius,
+                facecolor=node_color,
+                edgecolor=border_color,
+                linewidth=linewidth,
+                zorder=zorder,
+            )
+            ax.add_patch(circle)
+
+            ax.text(
+                x,
+                y,
+                label,
+                ha="center",
+                va="center",
+                fontsize=9,
+                color=text_color,
+                zorder=zorder + 1,
+            )
 
     def draw_base(self):
         self.ax1.clear()
