@@ -110,29 +110,89 @@ class App(tk.Tk):
         self.graph = construir_grafo()
         self.G_nx = to_networkx(self.graph)
         self.pos = nx.spring_layout(self.G_nx, seed=42)
+        self.start_node: str | None = None
+        self.end_node: str | None = None
+        self.anim = None
         self.create_widgets()
 
     def create_widgets(self):
-        nodos = sorted(self.graph.nodos.keys())
-        self.start_var = tk.StringVar(value=nodos[0])
-        self.end_var = tk.StringVar(value=nodos[-1])
-
-        ttk.Label(self, text="Nodo inicio:").grid(row=0, column=0, sticky="w")
-        ttk.OptionMenu(self, self.start_var, self.start_var.get(), *nodos).grid(row=0, column=1, sticky="ew")
-        ttk.Label(self, text="Nodo destino:").grid(row=1, column=0, sticky="w")
-        ttk.OptionMenu(self, self.end_var, self.end_var.get(), *nodos).grid(row=1, column=1, sticky="ew")
+        ttk.Label(self, text="Inicio:").grid(row=0, column=0, sticky="w")
+        self.start_label = ttk.Label(self, text="-")
+        self.start_label.grid(row=0, column=1, sticky="w")
+        ttk.Label(self, text="Destino:").grid(row=1, column=0, sticky="w")
+        self.end_label = ttk.Label(self, text="-")
+        self.end_label.grid(row=1, column=1, sticky="w")
         ttk.Button(self, text="Buscar", command=self.run).grid(row=2, column=0, columnspan=2, pady=4)
 
         self.text = tk.Text(self, width=40, height=4)
         self.text.grid(row=3, column=0, columnspan=2)
 
-        self.fig, (self.ax1, self.ax2) = plt.subplots(1,2, figsize=(10,5))
+        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10,5))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.get_tk_widget().grid(row=4, column=0, columnspan=2)
+        self.canvas.mpl_connect("button_press_event", self.on_canvas_click)
+        self.draw_base()
+
+    def on_canvas_click(self, event):
+        if event.inaxes != self.ax1:
+            return
+        if event.xdata is None or event.ydata is None:
+            return
+        x, y = event.xdata, event.ydata
+        closest = None
+        min_dist = float("inf")
+        for node, (nx_pos, ny_pos) in self.pos.items():
+            dist = (nx_pos - x) ** 2 + (ny_pos - y) ** 2
+            if dist < min_dist:
+                min_dist = dist
+                closest = node
+        if min_dist > 0.05:
+            return
+        if self.start_node is None:
+            self.start_node = closest
+            self.start_label.config(text=closest)
+        elif self.end_node is None:
+            self.end_node = closest
+            self.end_label.config(text=closest)
+        else:
+            self.start_node = closest
+            self.start_label.config(text=closest)
+            self.end_node = None
+            self.end_label.config(text="-")
+        self.draw_base()
+
+    def draw_base(self):
+        self.ax1.clear()
+        nx.draw(
+            self.G_nx,
+            self.pos,
+            ax=self.ax1,
+            node_color="lightgray",
+            edge_color="gray",
+            with_labels=True,
+            arrowsize=10,
+        )
+        if self.start_node:
+            nx.draw_networkx_nodes(
+                self.G_nx, self.pos, ax=self.ax1, nodelist=[self.start_node], node_color="blue"
+            )
+        if self.end_node:
+            nx.draw_networkx_nodes(
+                self.G_nx, self.pos, ax=self.ax1, nodelist=[self.end_node], node_color="orange"
+            )
+        self.ax1.set_title("Recorrido")
+        self.ax2.clear()
+        self.ax2.set_title("Arboles")
+        self.canvas.draw()
 
     def run(self):
-        start = self.start_var.get()
-        end = self.end_var.get()
+        start = self.start_node
+        end = self.end_node
+        if not start or not end:
+            messagebox.showwarning(
+                "Seleccion requerida", "Seleccione nodo de inicio y destino"
+            )
+            return
         try:
             path_bfs, tree_bfs = bfs_with_tree(self.graph, start, end)
             path_dfs, tree_dfs = dfs_with_tree(self.graph, start, end)
@@ -153,30 +213,60 @@ class App(tk.Tk):
         self.draw_results(path_bfs, tree_bfs, path_dfs, tree_dfs)
 
     def draw_results(self, path_bfs, tree_bfs, path_dfs, tree_dfs):
-        self.ax1.clear()
-        self.ax2.clear()
-        nx.draw(self.G_nx, self.pos, ax=self.ax1, node_color='lightgray', edge_color='gray', with_labels=True, arrowsize=10)
-        if path_bfs:
-            edges = list(zip(path_bfs, path_bfs[1:]))
-            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1, nodelist=path_bfs, node_color='green')
-            nx.draw_networkx_edges(self.G_nx, self.pos, ax=self.ax1, edgelist=edges, edge_color='green', width=2)
-        if path_dfs:
-            edges = list(zip(path_dfs, path_dfs[1:]))
-            nx.draw_networkx_nodes(self.G_nx, self.pos, ax=self.ax1, nodelist=path_dfs, node_color='red')
-            nx.draw_networkx_edges(self.G_nx, self.pos, ax=self.ax1, edgelist=edges, edge_color='red', width=2, style='dashed')
-        self.ax1.set_title('Recorrido')
+        self.draw_tree(tree_bfs, tree_dfs)
+        self.animate_paths(path_bfs, path_dfs)
 
+    def draw_tree(self, tree_bfs, tree_dfs):
+        self.ax2.clear()
         tree_graph = nx.DiGraph()
         for child, parent in tree_bfs.items():
             if parent:
-                tree_graph.add_edge(parent.id, child.id, tipo='BFS')
+                tree_graph.add_edge(parent.id, child.id, tipo="BFS")
         for child, parent in tree_dfs.items():
             if parent and (parent.id, child.id) not in tree_graph.edges:
-                tree_graph.add_edge(parent.id, child.id, tipo='DFS')
+                tree_graph.add_edge(parent.id, child.id, tipo="DFS")
         pos_tree = nx.spring_layout(tree_graph, seed=1)
-        colors = ['green' if d['tipo']== 'BFS' else 'red' for _,_,d in tree_graph.edges(data=True)]
+        colors = [
+            "green" if d["tipo"] == "BFS" else "red" for _, _, d in tree_graph.edges(data=True)
+        ]
         nx.draw(tree_graph, pos_tree, ax=self.ax2, with_labels=True, arrowsize=10, edge_color=colors)
-        self.ax2.set_title('Arboles')
+        self.ax2.set_title("Arboles")
+
+    def animate_paths(self, path_bfs, path_dfs):
+        self.anim = None
+        max_steps = max(len(path_bfs or []), len(path_dfs or []))
+
+        def update(i):
+            self.draw_base()
+            if path_bfs:
+                edges_bfs = list(zip(path_bfs, path_bfs[1 : i + 1]))
+                nodes_bfs = path_bfs[: i + 1]
+                nx.draw_networkx_nodes(
+                    self.G_nx, self.pos, ax=self.ax1, nodelist=nodes_bfs, node_color="green"
+                )
+                nx.draw_networkx_edges(
+                    self.G_nx, self.pos, ax=self.ax1, edgelist=edges_bfs, edge_color="green", width=2
+                )
+            if path_dfs:
+                edges_dfs = list(zip(path_dfs, path_dfs[1 : i + 1]))
+                nodes_dfs = path_dfs[: i + 1]
+                nx.draw_networkx_nodes(
+                    self.G_nx, self.pos, ax=self.ax1, nodelist=nodes_dfs, node_color="red"
+                )
+                nx.draw_networkx_edges(
+                    self.G_nx,
+                    self.pos,
+                    ax=self.ax1,
+                    edgelist=edges_dfs,
+                    edge_color="red",
+                    width=2,
+                    style="dashed",
+                )
+
+        if max_steps > 0:
+            self.anim = animation.FuncAnimation(
+                self.fig, update, frames=max_steps, interval=800, repeat=False
+            )
         self.canvas.draw()
 
 
