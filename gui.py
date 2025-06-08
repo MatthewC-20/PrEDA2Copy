@@ -122,14 +122,27 @@ class App(tk.Tk):
         n = self.G_nx.number_of_nodes()
         try:
             from networkx.drawing.nx_agraph import graphviz_layout
-            return graphviz_layout(self.G_nx, prog="dot")
+            pos = graphviz_layout(self.G_nx, prog="dot")
         except Exception:
             try:
-                return nx.planar_layout(self.G_nx, scale=2)
+                pos = nx.planar_layout(self.G_nx, scale=2)
             except nx.NetworkXException:
-                return nx.spring_layout(
-                    self.G_nx, seed=42, k=2 / np.sqrt(n), iterations=200
+                pos = nx.spring_layout(
+                    self.G_nx, seed=42, k=3 / np.sqrt(n), iterations=2000
                 )
+        pos = nx.spring_layout(
+            self.G_nx, pos=pos, seed=42, k=3 / np.sqrt(n), iterations=500
+        )
+        return pos
+
+    def _resize_figure(self):
+        xs = [p[0] for p in self.pos.values()]
+        ys = [p[1] for p in self.pos.values()]
+        width = max(xs) - min(xs)
+        height = max(ys) - min(ys)
+        w = max(8, width * 5)
+        h = max(5, height * 5)
+        self.fig.set_size_inches(w, h)
 
     def create_widgets(self):
         ttk.Label(self, text="Inicio:").grid(row=0, column=0, sticky="w")
@@ -146,11 +159,19 @@ class App(tk.Tk):
         self.ax1 = self.fig.add_subplot(gs[1])
         self.ax_dfs = self.fig.add_subplot(gs[2])
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-        self.canvas.get_tk_widget().grid(row=3, column=0, columnspan=2)
+        self.canvas.get_tk_widget().grid(row=3, column=0, columnspan=2, sticky="nsew")
         self.canvas.mpl_connect("button_press_event", self.on_canvas_click)
+        self._resize_figure()
+        self.update_idletasks()
+        w = int(self.fig.get_figwidth() * self.fig.dpi)
+        h = int(self.fig.get_figheight() * self.fig.dpi) + 150
+        self.geometry(f"{w}x{h}")
 
         self.text = tk.Text(self, width=40, height=4)
-        self.text.grid(row=4, column=0, columnspan=2)
+        self.text.grid(row=4, column=0, columnspan=2, sticky="we")
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+        self.rowconfigure(3, weight=1)
         self.draw_base()
 
     def on_canvas_click(self, event):
