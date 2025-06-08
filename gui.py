@@ -6,6 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import networkx as nx
+import numpy as np
 
 from Graph import Graph
 
@@ -109,11 +110,22 @@ class App(tk.Tk):
         self.title("Recorridos BFS y DFS")
         self.graph = construir_grafo()
         self.G_nx = to_networkx(self.graph)
-        self.pos = nx.spring_layout(self.G_nx, seed=42)
+        self.pos = self._compute_layout()
         self.start_node: str | None = None
         self.end_node: str | None = None
         self.anim = None
+        self.bfs_window = None
+        self.dfs_window = None
         self.create_widgets()
+
+    def _compute_layout(self):
+        n = self.G_nx.number_of_nodes()
+        try:
+            return nx.planar_layout(self.G_nx, scale=2)
+        except nx.NetworkXException:
+            return nx.spring_layout(
+                self.G_nx, seed=42, k=2 / np.sqrt(n), iterations=200
+            )
 
     def create_widgets(self):
         ttk.Label(self, text="Inicio:").grid(row=0, column=0, sticky="w")
@@ -124,13 +136,13 @@ class App(tk.Tk):
         self.end_label.grid(row=1, column=1, sticky="w")
         ttk.Button(self, text="Buscar", command=self.run).grid(row=2, column=0, columnspan=2, pady=4)
 
-        self.text = tk.Text(self, width=40, height=4)
-        self.text.grid(row=3, column=0, columnspan=2)
-
-        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10,5))
+        self.fig, self.ax1 = plt.subplots(figsize=(6, 5))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-        self.canvas.get_tk_widget().grid(row=4, column=0, columnspan=2)
+        self.canvas.get_tk_widget().grid(row=3, column=0, columnspan=2)
         self.canvas.mpl_connect("button_press_event", self.on_canvas_click)
+
+        self.text = tk.Text(self, width=40, height=4)
+        self.text.grid(row=4, column=0, columnspan=2)
         self.draw_base()
 
     def on_canvas_click(self, event):
@@ -181,8 +193,6 @@ class App(tk.Tk):
                 self.G_nx, self.pos, ax=self.ax1, nodelist=[self.end_node], node_color="orange"
             )
         self.ax1.set_title("Recorrido")
-        self.ax2.clear()
-        self.ax2.set_title("Arboles")
         self.canvas.draw()
 
     def run(self):
@@ -213,24 +223,42 @@ class App(tk.Tk):
         self.draw_results(path_bfs, tree_bfs, path_dfs, tree_dfs)
 
     def draw_results(self, path_bfs, tree_bfs, path_dfs, tree_dfs):
-        self.draw_tree(tree_bfs, tree_dfs)
+        self.draw_tree_windows(tree_bfs, tree_dfs)
         self.animate_paths(path_bfs, path_dfs)
 
-    def draw_tree(self, tree_bfs, tree_dfs):
-        self.ax2.clear()
-        tree_graph = nx.DiGraph()
-        for child, parent in tree_bfs.items():
+    def draw_tree_windows(self, tree_bfs, tree_dfs):
+        self._show_tree(tree_bfs, "BFS", "green")
+        self._show_tree(tree_dfs, "DFS", "red")
+
+    def _show_tree(self, tree, title, color):
+        if not tree:
+            return
+        attr = f"{title.lower()}_window"
+        old_win = getattr(self, attr, None)
+        if old_win is not None and old_win.winfo_exists():
+            old_win.destroy()
+        window = tk.Toplevel(self)
+        setattr(self, attr, window)
+        window.title(f"Arbol {title}")
+        fig, ax = plt.subplots(figsize=(5, 5))
+        canvas = FigureCanvasTkAgg(fig, master=window)
+        canvas.get_tk_widget().pack()
+
+        G = nx.DiGraph()
+        for child, parent in tree.items():
             if parent:
-                tree_graph.add_edge(parent.id, child.id, tipo="BFS")
-        for child, parent in tree_dfs.items():
-            if parent and (parent.id, child.id) not in tree_graph.edges:
-                tree_graph.add_edge(parent.id, child.id, tipo="DFS")
-        pos_tree = nx.spring_layout(tree_graph, seed=1)
-        colors = [
-            "green" if d["tipo"] == "BFS" else "red" for _, _, d in tree_graph.edges(data=True)
-        ]
-        nx.draw(tree_graph, pos_tree, ax=self.ax2, with_labels=True, arrowsize=10, edge_color=colors)
-        self.ax2.set_title("Arboles")
+                G.add_edge(parent.id, child.id)
+
+        try:
+            pos = nx.planar_layout(G)
+        except nx.NetworkXException:
+            pos = nx.spring_layout(G, seed=1)
+
+        nx.draw(G, pos, ax=ax, with_labels=True, arrowsize=10, edge_color=color, node_color="lightgray")
+        ax.set_title(f"Arbol {title}")
+        fig.tight_layout()
+        canvas.draw()
+        window.focus()
 
     def animate_paths(self, path_bfs, path_dfs):
         self.anim = None
