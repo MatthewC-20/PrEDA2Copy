@@ -222,13 +222,15 @@ class App(tk.Tk):
 
     def _draw_text_nodes(self, ax, pos, nodelist, labels=None, node_color="lightgray", 
                         border_color="black", text_color="black", linewidth=1, zorder=1):
-        """Dibuja nodos con forma ovalada de tamaño fijo"""
+        """Dibuja nodos con forma ovalada cuyo tamaño depende de la etiqueta"""
         if labels is None:
             labels = {n: n for n in nodelist}
         
-        # Dimensiones fijas para los nodos ovalados
-        width = 0.20  # Ancho fijo para el óvalo
-        height = 0.12  # Alto fijo para el óvalo
+        # Dimensiones para los nodos ajustadas según la longitud del texto
+        # Se parte de un tamaño base y se añade un factor proporcional al número
+        # de caracteres para evitar que las etiquetas largas se solapen.
+        base_w, base_h = 0.08, 0.05
+        scale_w, scale_h = 0.015, 0.01
         
         for node in nodelist:
             if node not in pos:
@@ -236,11 +238,15 @@ class App(tk.Tk):
                 
             x, y = pos[node]
             label = str(labels[node])
-            
+
+            # Calcular tamaño del óvalo en función de la longitud de la etiqueta
+            width = base_w + len(label) * scale_w
+            height = base_h + len(label) * scale_h
+
             # Crear un óvalo (elipse)
             ellipse = patches.Ellipse(
-                (x, y), 
-                width=width, 
+                (x, y),
+                width=width,
                 height=height,
                 facecolor=node_color,
                 edgecolor=border_color,
