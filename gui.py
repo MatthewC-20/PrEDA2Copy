@@ -5,6 +5,7 @@ matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import matplotlib.patches as patches
 import networkx as nx
 import numpy as np
 
@@ -122,17 +123,35 @@ class App(tk.Tk):
         n = self.G_nx.number_of_nodes()
         try:
             from networkx.drawing.nx_agraph import graphviz_layout
+            # Usar 'dot' para layout jerárquico con nodo raíz arriba
             pos = graphviz_layout(self.G_nx, prog="dot")
         except Exception:
             try:
-                pos = nx.planar_layout(self.G_nx, scale=2)
+                pos = nx.planar_layout(self.G_nx, scale=8)
             except nx.NetworkXException:
                 pos = nx.spring_layout(
-                    self.G_nx, seed=42, k=3 / np.sqrt(n), iterations=2000
+                    self.G_nx, seed=42, k=8 / np.sqrt(n), iterations=3000
                 )
-        pos = nx.spring_layout(
-            self.G_nx, pos=pos, seed=42, k=3 / np.sqrt(n), iterations=500
-        )
+        
+        # Ajustar layout para asegurar que el nodo inicial esté arriba al centro
+        if self.start_node:
+            # Calcular el centro horizontal
+            xs = [p[0] for p in pos.values()]
+            x_center = (max(xs) + min(xs)) / 2
+            
+            # Calcular la coordenada y más alta (superior)
+            ys = [p[1] for p in pos.values()]
+            y_top = max(ys) + 0.2
+            
+            # Colocar el nodo inicial en la parte superior central
+            pos[self.start_node] = (x_center, y_top)
+            
+            # Reajustar el layout a partir de la nueva posición del nodo inicial
+            pos = nx.spring_layout(
+                self.G_nx, pos=pos, fixed=[self.start_node], seed=42, 
+                k=8 / np.sqrt(n), iterations=1000
+            )
+        
         return pos
 
     def _resize_figure(self):
@@ -140,8 +159,8 @@ class App(tk.Tk):
         ys = [p[1] for p in self.pos.values()]
         width = max(xs) - min(xs)
         height = max(ys) - min(ys)
-        w = max(8, width * 5)
-        h = max(5, height * 5)
+        w = max(10, width * 6)  # Aumentado el tamaño base y la escala
+        h = max(6, height * 6)  # Aumentado el tamaño base y la escala
         self.fig.set_size_inches(w, h)
 
     def create_widgets(self):
@@ -153,8 +172,8 @@ class App(tk.Tk):
         self.end_label.grid(row=1, column=1, sticky="w")
         ttk.Button(self, text="Buscar", command=self.run).grid(row=2, column=0, columnspan=2, pady=4)
 
-        self.fig = plt.Figure(figsize=(12, 5))
-        gs = self.fig.add_gridspec(1, 3, width_ratios=[1, 2, 1])
+        self.fig = plt.Figure(figsize=(14, 6))  # Figura más grande
+        gs = self.fig.add_gridspec(1, 3, width_ratios=[1.5, 2, 1.5])  # Más espacio para los árboles
         self.ax_bfs = self.fig.add_subplot(gs[0])
         self.ax1 = self.fig.add_subplot(gs[1])
         self.ax_dfs = self.fig.add_subplot(gs[2])
@@ -202,20 +221,47 @@ class App(tk.Tk):
             self.end_label.config(text="-")
         self.draw_base()
 
+    def _draw_text_nodes(self, ax, pos, nodelist, labels=None, node_color="lightgray", 
+                        border_color="black", text_color="black", linewidth=1, zorder=1):
+        """Dibuja nodos con forma ovalada de tamaño fijo"""
+        if labels is None:
+            labels = {n: n for n in nodelist}
+        
+        # Dimensiones fijas para los nodos ovalados
+        width = 0.20  # Ancho fijo para el óvalo
+        height = 0.12  # Alto fijo para el óvalo
+        
+        for node in nodelist:
+            if node not in pos:
+                continue
+                
+            x, y = pos[node]
+            label = str(labels[node])
+            
+            # Crear un óvalo (elipse)
+            ellipse = patches.Ellipse(
+                (x, y), 
+                width=width, 
+                height=height,
+                facecolor=node_color,
+                edgecolor=border_color,
+                linewidth=linewidth,
+                zorder=zorder
+            )
+            ax.add_patch(ellipse)
+            
+            # Añadir el texto centrado en el óvalo
+            ax.text(x, y, label, ha='center', va='center', fontsize=9,
+                   color=text_color, zorder=zorder+1)
+
     def draw_base(self):
         self.ax1.clear()
-        nx.draw_networkx_nodes(
-            self.G_nx,
-            self.pos,
-            ax=self.ax1,
-            node_color="lightgray",
-            node_size=2000,
-        )
-        nx.draw_networkx_labels(
-            self.G_nx,
-            self.pos,
-            ax=self.ax1,
-        )
+        
+        # Actualizar el layout si cambiaron los nodos de inicio/fin
+        if self.start_node or self.end_node:
+            self.pos = self._compute_layout()
+        
+        # Dibujar aristas primero
         nx.draw_networkx_edges(
             self.G_nx,
             self.pos,
@@ -224,24 +270,36 @@ class App(tk.Tk):
             arrowsize=10,
             connectionstyle="arc3,rad=0.2",
         )
+        
+        # Dibujar nodos
+        nodes = list(self.G_nx.nodes())
+        self._draw_text_nodes(
+            self.ax1, 
+            self.pos, 
+            nodes,
+            node_color="lightgray"
+        )
+        
+        # Resaltar nodos de inicio y fin si están seleccionados
         if self.start_node:
-            nx.draw_networkx_nodes(
-                self.G_nx,
+            self._draw_text_nodes(
+                self.ax1,
                 self.pos,
-                ax=self.ax1,
-                nodelist=[self.start_node],
+                [self.start_node],
                 node_color="blue",
-                node_size=2000,
+                text_color="white",
+                zorder=10
             )
         if self.end_node:
-            nx.draw_networkx_nodes(
-                self.G_nx,
+            self._draw_text_nodes(
+                self.ax1,
                 self.pos,
-                ax=self.ax1,
-                nodelist=[self.end_node],
+                [self.end_node],
                 node_color="orange",
-                node_size=2000,
+                text_color="white",
+                zorder=10
             )
+            
         self.ax1.set_title("Recorrido")
         self.canvas.draw()
 
@@ -286,26 +344,52 @@ class App(tk.Tk):
             ax.set_title(f"Arbol {title}")
             self.canvas.draw()
             return
+        
         G = nx.DiGraph()
+        
+        # Identificar el nodo raíz (nodo sin padre)
+        root_node = None
         for child, parent in tree.items():
             if parent:
                 G.add_edge(parent.id, child.id)
+            elif not parent and child.id == self.start_node:
+                root_node = child.id
+                G.add_node(child.id)
+        
+        if not root_node and G.nodes():
+            # Si no se identificó el nodo raíz, usar el nodo inicial
+            root_node = self.start_node if self.start_node in G.nodes() else list(G.nodes())[0]
+        
         try:
             from networkx.drawing.nx_agraph import graphviz_layout
-            pos = graphviz_layout(G, prog="dot")
+            # Usar 'dot' con el nodo raíz especificado para asegurarnos que quede arriba
+            pos = graphviz_layout(G, prog="dot", root=root_node)
         except Exception:
             try:
-                pos = nx.planar_layout(G)
+                pos = nx.planar_layout(G, scale=6)
             except nx.NetworkXException:
-                pos = nx.spring_layout(G, seed=1)
-        nx.draw_networkx_nodes(
-            G,
-            pos,
-            ax=ax,
-            node_color="lightgray",
-            node_size=2000,
-        )
-        nx.draw_networkx_labels(G, pos, ax=ax)
+                pos = nx.spring_layout(G, seed=1, k=6 / np.sqrt(max(1, G.number_of_nodes())), iterations=1500)
+        
+        # Si tenemos un nodo raíz, posicionarlo manualmente en la parte superior central
+        if root_node and root_node in pos:
+            # Calcular el centro horizontal
+            xs = [p[0] for p in pos.values()]
+            x_center = (max(xs) + min(xs)) / 2 if xs else 0
+            
+            # Calcular la coordenada y más alta (superior)
+            ys = [p[1] for p in pos.values()]
+            y_top = max(ys) + 0.2 if ys else 1
+            
+            # Colocar el nodo raíz en la parte superior central
+            pos[root_node] = (x_center, y_top)
+            
+            # Reajustar el layout manteniendo fijo el nodo raíz
+            pos = nx.spring_layout(
+                G, pos=pos, fixed=[root_node], seed=1, 
+                k=6 / np.sqrt(max(1, G.number_of_nodes())), iterations=1000
+            )
+        
+        # Dibujar aristas
         nx.draw_networkx_edges(
             G,
             pos,
@@ -314,7 +398,28 @@ class App(tk.Tk):
             arrowsize=10,
             connectionstyle="arc3,rad=0.2",
         )
+        
+        # Dibujar nodos con tamaño ajustado al texto
+        self._draw_text_nodes(
+            ax, 
+            pos, 
+            list(G.nodes()),
+            node_color="lightgray"
+        )
+        
+        # Resaltar el nodo raíz
+        if root_node and root_node in pos:
+            self._draw_text_nodes(
+                ax, 
+                pos, 
+                [root_node],
+                node_color=color,
+                text_color="white",
+                zorder=20
+            )
+        
         ax.set_title(f"Arbol {title}")
+        ax.margins(0.25)
         self.canvas.draw()
 
     def animate_paths(self, path_bfs, path_dfs):
@@ -323,17 +428,13 @@ class App(tk.Tk):
 
         def update(i):
             self.draw_base()
+            
+            # Dibujar camino BFS
             if path_bfs:
                 edges_bfs = list(zip(path_bfs, path_bfs[1 : i + 1]))
                 nodes_bfs = path_bfs[: i + 1]
-                nx.draw_networkx_nodes(
-                    self.G_nx,
-                    self.pos,
-                    ax=self.ax1,
-                    nodelist=nodes_bfs,
-                    node_color="green",
-                    node_size=2000,
-                )
+                
+                # Dibujar aristas del camino
                 nx.draw_networkx_edges(
                     self.G_nx,
                     self.pos,
@@ -343,17 +444,25 @@ class App(tk.Tk):
                     width=2,
                     connectionstyle="arc3,rad=0.2",
                 )
+                
+                # Dibujar nodos del camino
+                self._draw_text_nodes(
+                    self.ax1,
+                    self.pos,
+                    nodes_bfs,
+                    node_color="green",
+                    text_color="white",
+                    border_color="darkgreen",
+                    linewidth=1.5,
+                    zorder=20
+                )
+                
+            # Dibujar camino DFS
             if path_dfs:
                 edges_dfs = list(zip(path_dfs, path_dfs[1 : i + 1]))
                 nodes_dfs = path_dfs[: i + 1]
-                nx.draw_networkx_nodes(
-                    self.G_nx,
-                    self.pos,
-                    ax=self.ax1,
-                    nodelist=nodes_dfs,
-                    node_color="red",
-                    node_size=2000,
-                )
+                
+                # Dibujar aristas del camino
                 nx.draw_networkx_edges(
                     self.G_nx,
                     self.pos,
@@ -364,6 +473,27 @@ class App(tk.Tk):
                     style="dashed",
                     connectionstyle="arc3,rad=0.2",
                 )
+                
+                # Dibujar nodos del camino
+                self._draw_text_nodes(
+                    self.ax1,
+                    self.pos,
+                    nodes_dfs,
+                    node_color="red",
+                    text_color="white",
+                    border_color="darkred",
+                    linewidth=1.5,
+                    zorder=20
+                )
+                
+            # Añadir indicador de paso actual
+            self.ax1.annotate(
+                f"Paso {i+1}/{max_steps}",
+                xy=(0.02, 0.02),
+                xycoords="axes fraction",
+                fontsize=9,
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.7)
+            )
 
         if max_steps > 0:
             self.anim = animation.FuncAnimation(
