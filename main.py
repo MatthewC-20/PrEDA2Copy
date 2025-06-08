@@ -37,14 +37,28 @@ def graficar(g: Graph, ruta: list[str], titulo: str, color: str):
 
     pos = nx.spring_layout(G_nx, seed=42)
     plt.figure(figsize=(10, 6))
-    nx.draw_networkx_nodes(G_nx, pos, node_size=300, node_color='lightgray')
-    nx.draw_networkx_edges(G_nx, pos, edge_color='gray', alpha=0.5)
+    nx.draw_networkx_nodes(G_nx, pos, node_size=2000, node_color='lightgray')
     nx.draw_networkx_labels(G_nx, pos, font_size=8)
+    nx.draw_networkx_edges(
+        G_nx,
+        pos,
+        edge_color='gray',
+        alpha=0.5,
+        arrows=True,
+        connectionstyle='arc3,rad=0.2',
+    )
     # Resalta la ruta encontrada
     if ruta:
         aristas_ruta = list(zip(ruta, ruta[1:]))
-        nx.draw_networkx_nodes(G_nx, pos, nodelist=ruta, node_color=color, node_size=300)
-        nx.draw_networkx_edges(G_nx, pos, edgelist=aristas_ruta, edge_color=color, width=2)
+        nx.draw_networkx_nodes(G_nx, pos, nodelist=ruta, node_color=color, node_size=2000)
+        nx.draw_networkx_edges(
+            G_nx,
+            pos,
+            edgelist=aristas_ruta,
+            edge_color=color,
+            width=2,
+            connectionstyle='arc3,rad=0.2',
+        )
     plt.title(titulo)
     plt.axis('off')
 
