@@ -51,18 +51,46 @@ def graficar(g: Graph, ruta: list[str], titulo: str, color: str):
 
 def main():
     grafo = construir_grafo()
-    start, end = "AS52257", "AS2914"
+
+    # Mostrar los nodos disponibles
+    print("Nodos disponibles:")
+    nodos_disponibles = sorted(grafo.nodos.keys())
+    for i, nodo in enumerate(nodos_disponibles):
+        print(f"{i + 1}. {nodo}", end="\t")
+        if (i + 1) % 5 == 0:  # 5 nodos por línea
+            print()
+    print("\n")
+
+    # Solicitar nodos de inicio y fin
+    start = input("Ingresa el nodo de inicio (ejemplo: AS52257): ")
+    end = input("Ingresa el nodo de destino (ejemplo: AS2914): ")
+
+    # Verificar que los nodos existan
+    if start not in grafo.nodos:
+        print(f"Error: El nodo {start} no existe en el grafo.")
+        return
+    if end not in grafo.nodos:
+        print(f"Error: El nodo {end} no existe en el grafo.")
+        return
 
     ruta_bfs = bfs_shortest_path(grafo, start, end)
     ruta_dfs = dfs_path(grafo, start, end)
 
-    print("Ruta BFS (más corta):", ruta_bfs)
-    print("Ruta DFS (profunda):", ruta_dfs)
+    if ruta_bfs:
+        print("Ruta BFS (más corta):", ruta_bfs)
+        graficar(grafo, ruta_bfs, f"BFS: Ruta más corta de {start} a {end}", 'green')
+    else:
+        print(f"No se encontró ruta BFS de {start} a {end}")
 
-    # Gráficos
-    graficar(grafo, ruta_bfs, "BFS: Ruta más corta", 'green')
-    graficar(grafo, ruta_dfs, "DFS: Ruta profunda", 'red')
-    plt.show()
+    if ruta_dfs:
+        print("Ruta DFS (profunda):", ruta_dfs)
+        graficar(grafo, ruta_dfs, f"DFS: Ruta profunda de {start} a {end}", 'red')
+    else:
+        print(f"No se encontró ruta DFS de {start} a {end}")
+
+    if ruta_bfs or ruta_dfs:
+        plt.show()
+
 
 if __name__ == "__main__":
     main()
