@@ -121,11 +121,15 @@ class App(tk.Tk):
     def _compute_layout(self):
         n = self.G_nx.number_of_nodes()
         try:
-            return nx.planar_layout(self.G_nx, scale=2)
-        except nx.NetworkXException:
-            return nx.spring_layout(
-                self.G_nx, seed=42, k=2 / np.sqrt(n), iterations=200
-            )
+            from networkx.drawing.nx_agraph import graphviz_layout
+            return graphviz_layout(self.G_nx, prog="dot")
+        except Exception:
+            try:
+                return nx.planar_layout(self.G_nx, scale=2)
+            except nx.NetworkXException:
+                return nx.spring_layout(
+                    self.G_nx, seed=42, k=2 / np.sqrt(n), iterations=200
+                )
 
     def create_widgets(self):
         ttk.Label(self, text="Inicio:").grid(row=0, column=0, sticky="w")
@@ -136,7 +140,11 @@ class App(tk.Tk):
         self.end_label.grid(row=1, column=1, sticky="w")
         ttk.Button(self, text="Buscar", command=self.run).grid(row=2, column=0, columnspan=2, pady=4)
 
-        self.fig, self.ax1 = plt.subplots(figsize=(6, 5))
+        self.fig = plt.Figure(figsize=(12, 5))
+        gs = self.fig.add_gridspec(1, 3, width_ratios=[1, 2, 1])
+        self.ax_bfs = self.fig.add_subplot(gs[0])
+        self.ax1 = self.fig.add_subplot(gs[1])
+        self.ax_dfs = self.fig.add_subplot(gs[2])
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.get_tk_widget().grid(row=3, column=0, columnspan=2)
         self.canvas.mpl_connect("button_press_event", self.on_canvas_click)
@@ -223,42 +231,35 @@ class App(tk.Tk):
         self.draw_results(path_bfs, tree_bfs, path_dfs, tree_dfs)
 
     def draw_results(self, path_bfs, tree_bfs, path_dfs, tree_dfs):
-        self.draw_tree_windows(tree_bfs, tree_dfs)
+        self.draw_tree_axes(tree_bfs, tree_dfs)
         self.animate_paths(path_bfs, path_dfs)
 
-    def draw_tree_windows(self, tree_bfs, tree_dfs):
-        self._show_tree(tree_bfs, "BFS", "green")
-        self._show_tree(tree_dfs, "DFS", "red")
+    def draw_tree_axes(self, tree_bfs, tree_dfs):
+        self._draw_tree(self.ax_bfs, tree_bfs, "BFS", "green")
+        self._draw_tree(self.ax_dfs, tree_dfs, "DFS", "red")
 
-    def _show_tree(self, tree, title, color):
+    def _draw_tree(self, ax, tree, title, color):
+        ax.clear()
         if not tree:
+            ax.set_title(f"Arbol {title}")
+            self.canvas.draw()
             return
-        attr = f"{title.lower()}_window"
-        old_win = getattr(self, attr, None)
-        if old_win is not None and old_win.winfo_exists():
-            old_win.destroy()
-        window = tk.Toplevel(self)
-        setattr(self, attr, window)
-        window.title(f"Arbol {title}")
-        fig, ax = plt.subplots(figsize=(5, 5))
-        canvas = FigureCanvasTkAgg(fig, master=window)
-        canvas.get_tk_widget().pack()
-
         G = nx.DiGraph()
         for child, parent in tree.items():
             if parent:
                 G.add_edge(parent.id, child.id)
-
         try:
-            pos = nx.planar_layout(G)
-        except nx.NetworkXException:
-            pos = nx.spring_layout(G, seed=1)
-
-        nx.draw(G, pos, ax=ax, with_labels=True, arrowsize=10, edge_color=color, node_color="lightgray")
+            from networkx.drawing.nx_agraph import graphviz_layout
+            pos = graphviz_layout(G, prog="dot")
+        except Exception:
+            try:
+                pos = nx.planar_layout(G)
+            except nx.NetworkXException:
+                pos = nx.spring_layout(G, seed=1)
+        nx.draw(G, pos, ax=ax, with_labels=True, arrowsize=10,
+                edge_color=color, node_color="lightgray")
         ax.set_title(f"Arbol {title}")
-        fig.tight_layout()
-        canvas.draw()
-        window.focus()
+        self.canvas.draw()
 
     def animate_paths(self, path_bfs, path_dfs):
         self.anim = None
